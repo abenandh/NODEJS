@@ -5,7 +5,7 @@ const data = [
   { id: 2, name: 'Jane Doe' },
 ];
 
-app.get('/api/data', (req, res) => {
+app.get('/api/data', (req, res) => {1
   res.send(data);
 });
 
