@@ -1,70 +1,74 @@
-const express = require('express');
+/**
+ * This is the main Node.js server script for your project
+ * Check out the two endpoints this back-end API provides in fastify.get and fastify.post below
+ */
 
-const app = express();
-const map = new Map();
+const path = require("path");
 
-const junctionLat = 11.931581;
-const junctionLng = 79.807646;
-
-
-app.get('/api/delete/:id', (req, res) => {
-  const id = req.params.id;
-  map.delete(id);
-  console.log(Object.fromEntries(map));
-  console.log("Data Removed Successfully");
+// Require the fastify framework and instantiate it
+const fastify = require("fastify")({
+  // Set this to true for detailed logging:
+  logger: false,
 });
 
+const axios = require('axios');
+const queue = [];
 
-app.get('/api/fetch', (req, res) => {  
-  map.forEach((value, key) => {
-    const distance = getDistance(value.lt,value.ln,junctionLat,junctionLng).toFixed(2);
-    console.log(`Key: ${key}, Value: ${distance}`);
-    if(distance<200){
-      console.log("Ambulance Coming .......");
-    }
-  });
-  res.send(Object.fromEntries(map));
-});
-
-app.get('/api/updateRead/:id', (req, res) => {
-  const lt = req.query.lt;
-  const ln = req.query.ln;
-
-  const LatLng = new  Map();
-  LatLng.set("lt",lt);
-  LatLng.set("ln",ln);
-  if(lt!=undefined && ln!=undefined){
-  map.set(req.params.id, Object.fromEntries(LatLng));
+fastify.get('/add', (req, res) => {
+  const n = req.query.lane;
+  
+  if(notInLogic(n)){
+    queue.push(n);
   }
-  console.log(Object.fromEntries(map));
+  console.log('Ambulance added to the queue');
+  sendToFireBase();
+  res.send("success");
+});
+
+fastify.get('/remove', (req, res) => {
+  const j = queue.shift();
+  console.log("Data removed from firebase " + j);
+  sendToFireBase();
+  res.send("removed success");
 
 });
 
-app.listen(3000, () => {
-  console.log('Server listening on port 3000');
-});
 
-
-function getDistance(lat1, lng1, lat2, lng2) {
-  const R = 6371e3; // Earth's radius in meters
-  const φ1 = toRadians(lat1);
-  const φ2 = toRadians(lat2);
-  const Δφ = toRadians(lat2 - lat1);
-  const Δλ = toRadians(lng2 - lng1);
-
-  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) *
-    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  const d = R * c;
-  return d;
+function notInLogic(n){
+  for(var i=0;i<queue.length;i++){
+    if(n===queue[i]){
+      return false;
+    }
+  }return true;
 }
 
-function toRadians(degrees) {
-  return degrees * Math.PI / 180;
+async function sendToFireBase() {
+  try 
+  {
+    var n;
+    if(queue.length === 0){
+      n = 5; // set the default value of n
+    } else {
+      n = queue[0];
+    }
+    const response = await axios.put('https://demo1-f4fb2-default-rtdb.firebaseio.com/users.json', {
+      "value": parseInt(n, 10)
+    });
+    console.log(response.data);
+    console.log(queue);
+  } catch (error) {
+    console.error(error);
+  }
 }
 
-
-
-
+// Run the server and report out to the logs
+fastify.listen(
+  { port: process.env.PORT, host: "0.0.0.0" },
+  function (err, address) {
+    if (err) {
+      console.error(err);
+      process.exit(1);
+    }
+    console.log(`Your app is listening on ${address}`);
+  }
+);
